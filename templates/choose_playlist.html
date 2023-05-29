@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Setlist</title>
+</head>
+<body>
+    <h1>Select a Playlist:</h1>
+    <form action="{{ url_for('generate_setlist') }}" method="POST">
+        <select name="playlist">
+            {% for playlist in playlists %}
+                <option value="{{ playlist }}">{{ playlist }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Generate Setlist">
+    </form>
+</body>
+</html>
