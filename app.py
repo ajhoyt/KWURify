@@ -151,26 +151,6 @@ def generate_setlist():
     SELECTED_PLAYLIST_ID = curr_user_playlists[SELECTED_PLAYLIST]
     response = requests.get(f'https://api.spotify.com/v1/playlists/{SELECTED_PLAYLIST_ID}',headers = headers)
     playlist_json = response.json()
-    # tracklist = playlist_json["tracks"]["items"]
-    # track_artists = []
-    # track_name = []
-    # #track_popularity_score = []
-    
-    # track_ids = []
- 
-    # artist_ids = []
-    # artist_popularities = []
-    # # for track in tracklist:
-    # #     track = track["track"]
-    # #     artists = track['artists']
-    # #     for artist in artists:
-    # #         artist_id = artist['id']
-    # #         artist_ids.append(artist_id)
-    # #         artist_popularity = artist['popularity']
-    # #         artist_popularities.append(artist_popularities)
-    # #     track_id = track['id']
-    # #     track_ids.append(track_id)
-    #     #test_return.append(f"{track['artists'][0]['name']}'s artist ID is: {track['artists'][0]['id']}\n and their song {track['name']}'s song ID is {track['id']}")
     
     playlist = playlist_json["tracks"]["items"]
     valid_artist_ids = []
@@ -193,72 +173,26 @@ def generate_setlist():
         
         curr_track_id = curr_track['id']
         valid_track_ids.append(curr_track_id)
-        
-    return  valid_track_ids#f"artists ids:{artist_ids},\n song ids: {track_ids}" 
-        # track = track["track"]
-        # track_artists.append(track['artists'])
-        # track_name.append(track['name'])
-        # #track_popularity_score.append(track['popularity'])
-        # track_url.append(str(track['external_urls']['spotify']))
-        # artist_count.append(len(track['artists']))
-        # track_id.append(track["id"])
-        #return f"{tracklist[track]['track']['artists'][0]['name']}'s artist ID is: {tracklist[track]['track']['artists'][0]['id']}\n and their song {tracklist[track]['track']['name']}'s song ID is {tracklist[track]['track']['id']}"
-        
-    #return tracklist
     
-    #f"{tracklist[0]['track']['artists'][0]['name']}'s artist ID is: {tracklist[0]['track']['artists'][0]['id']}\n and their song {tracklist[0]['track']['name']}'s song ID is {tracklist[0]['track']['id']}"
-        
-        #return "selected playlist: " + selected_playlist + "\n id = : "+selected_playlist_id#+"and it's id: " + selected_playlist_id
-    # tracklist = session["USER_PLAYLISTS_NAME_AND_ID"]
-    # track_artists = []
-    # track_name = []
-    # track_popularity_score = []
-    # track_url = []
-    # track_id = []
-    # artist_name = []
-    # artist_count = []
-    # artist_ids = []
-    # artist_popularity = []
-    # for track in tracklist:
-        
-    #     track_artists.append(track['artists'])
-    #     track_name.append(track['name'])
-    #     track_popularity_score.append(track['popularity'])
-    #     track_url.append(str(track['external_urls']['spotify']))
-    #     artist_count.append(len(track['artists']))
-    #     track_id.append(track["id"])
+    valid_playlist = [track["track"] for track in playlist if track['track']['id'] in valid_track_ids]
+
+    #track_data = [track["track"] for track in valid_playlist]
+    df_tracks = pd.json_normalize(valid_playlist,record_prefix = 'artist_',record_path = 'artists',meta_prefix = 'track_',meta = ['name','id','popularity'])
+    df_tracks["order"] = (df_tracks['track_name'] != df_tracks['track_name'].shift()).cumsum()
+    df_tracks = df_tracks.set_index("track_name")
+    df_tracks = df_tracks.groupby(by=['track_name','track_id','order','track_popularity']).agg({"artist_name": lambda x: list(x),"artist_id":lambda x:list(x)}).rename({"artist_name":"artists_names"},axis=1).reset_index()
+    df_tracks = df_tracks.sort_values("order",ascending=True)
+
     
-    #     # if len(track['artists'])<=1:
-    #     #     artist_name.append(track['artists'][0]['name'])
-    #     # else:
-    #     artists = []
-    #     ids = []
-    #     popularities = []
-
-    #     for artist in track['artists']:
-    #         artists.append(artist['name'])
-    #         id = artist['id']
-    #         ids.append(id)
-    #         artist_response = requests.get(f'https://api.spotify.com/v1/artists/{id}',headers=headers)
-    #         artist_json_response=artist_response.json()
-    #         popularities.append(artist_json_response['popularity'])
-        
-    #     artist_popularity.append(popularities)
-    #     artist_name.append(artists)
-    #     artist_ids.append(ids)
-        
-    #     if(len(track['artists'])>1):
-    #         print('multiple artists for: '+ track['name'])
-
-
-    # pd.DataFrame(list(zip(track_name,track_popularity_score,track_url,track_id,artist_name,artist_ids,artist_popularity,artist_count)),
-    #             columns = ["track_name","track_popularity_score","track_url","track_ids","artist_names","artist_ids","artist_popularity","artist_count"])
-
-
-    # df = pd.DataFrame()
+    # ====== RECOMMENDATION SECTION ======
+    valid_track_ids_str = ','.join(valid_track_ids)
+    raudio_features_response = requests.get(f'https://api.spotify.com/v1/audio-features?ids={valid_track_ids_str}',headers=headers) 
+    audio_features_response_json = raudio_features_response.json()
+    df_audio_features = pd.DataFrame(data = audio_features_response_json["audio_features"]).drop(columns=["track_href", "type", "uri"]).add_prefix("track_")
     
-    # return "selected playlist: " + selected_playlist,print("id = :"+ curr_user_playlists[selected_playlist]) #+"and it's id: " + selected_playlist_id#, render_template('table.html',,  tables=[df.to_html(classes='data')], titles=df.columns.values)
 
+    df_main = df_tracks.merge(df_audio_features,on="track_id").set_index("order")
+    return render_template('index.html', dataframe=df_main.to_html())
 
 
 ######## NEXT STEP IS TO ACCESS THE PLAYLIST'S TRACK IDS AND ARTIST IDS SO THAT I CAN ITERATIVELY FEED THEM TO THE RECOMMENDATION 
