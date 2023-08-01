@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 import os
 from urllib.parse import quote
 import time
-import string
-import random
 import base64
 
 load_dotenv()
@@ -79,7 +77,7 @@ def choose_playlist():
     curr_user_playlists = {}
     iteration = 0
     while True:
-        curr_user_playlists_response = requests.get(f'https://api.spotify.com/v1/users/{USER_ID}/playlists?limit=50&offset={iteration*50}',headers = headers)
+        curr_user_playlists_response = requests.get(f'https://api.spotify.com/v1/me/playlists?limit=50&offset={iteration*50}',headers = headers)
         curr_user_playlists_json = curr_user_playlists_response.json()
         #session['CURR_USER_PLAYLISTS']=curr_user_playlists_json
         items = curr_user_playlists_json['items']
@@ -96,6 +94,7 @@ def choose_playlist():
             break
     session['CURR_USER_PLAYLISTS'] = curr_user_playlists
     session['TOKEN_INFO'] = token_info
+    
     return render_template("choose_playlist.html", playlists=curr_user_playlists.keys())
 
 def get_token():
@@ -133,26 +132,40 @@ def get_artists_popularities(ids:list):
     return popularities
 
 
+def get_recommendations(df: pd.DataFrame):
+    
+    # columns = ["track_name","track_id","track_popularity","artists_names","artist_id",
+    #            "track_danceability","track_energy","track_key","track_loudness","track_mode",
+    #            "track_speechiness","track_acousticness","track_instrumentalness","track_liveness",
+    #            "track_valence","track_tempo","track_analysis_url",
+    #            "track_duration_ms","track_time_signature"]
+    
 
+
+
+    pass
 
 
 
 @app.route("/generate_setlist", methods = ["POST","GET"])
 def generate_setlist():
+    
+    # ====== RETRIEVE PLAYLIST SECTION ======
+
     token_info = session['TOKEN_INFO']
     headers = {
     'Authorization': 'Bearer {token}'.format(token=token_info['access_token'])
     }
     curr_user_playlists = session.get("CURR_USER_PLAYLISTS")
-
-
-    #if request.method == "POST":
+    
     SELECTED_PLAYLIST = request.form.get("playlist")
     SELECTED_PLAYLIST_ID = curr_user_playlists[SELECTED_PLAYLIST]
     response = requests.get(f'https://api.spotify.com/v1/playlists/{SELECTED_PLAYLIST_ID}',headers = headers)
     playlist_json = response.json()
-    
     playlist = playlist_json["tracks"]["items"]
+
+    # ====== FILTER OUT POPULAR SONGS SECTION ======
+
     valid_artist_ids = []
     valid_track_ids = []
     for track in playlist:
@@ -174,26 +187,38 @@ def generate_setlist():
         curr_track_id = curr_track['id']
         valid_track_ids.append(curr_track_id)
     
+    # ====== CREATE VALID SONG TABLE SECTION ======
+
     valid_playlist = [track["track"] for track in playlist if track['track']['id'] in valid_track_ids]
 
-    #track_data = [track["track"] for track in valid_playlist]
     df_tracks = pd.json_normalize(valid_playlist,record_prefix = 'artist_',record_path = 'artists',meta_prefix = 'track_',meta = ['name','id','popularity'])
     df_tracks["order"] = (df_tracks['track_name'] != df_tracks['track_name'].shift()).cumsum()
     df_tracks = df_tracks.set_index("track_name")
     df_tracks = df_tracks.groupby(by=['track_name','track_id','order','track_popularity']).agg({"artist_name": lambda x: list(x),"artist_id":lambda x:list(x)}).rename({"artist_name":"artists_names"},axis=1).reset_index()
     df_tracks = df_tracks.sort_values("order",ascending=True)
 
-    
-    # ====== RECOMMENDATION SECTION ======
     valid_track_ids_str = ','.join(valid_track_ids)
-    raudio_features_response = requests.get(f'https://api.spotify.com/v1/audio-features?ids={valid_track_ids_str}',headers=headers) 
-    audio_features_response_json = raudio_features_response.json()
+    audio_features_response = requests.get(f'https://api.spotify.com/v1/audio-features?ids={valid_track_ids_str}',headers=headers) 
+    audio_features_response_json = audio_features_response.json()
     df_audio_features = pd.DataFrame(data = audio_features_response_json["audio_features"]).drop(columns=["track_href", "type", "uri"]).add_prefix("track_")
+    df_main = df_tracks.merge(df_audio_features,on="track_id").set_index("order")
+    
+    
+    #### FIGURE OUT HOW TO ACCESS EACH ARTIST ID USING EXPLODE TO GET ADD EACH ARTIST POPULARITY TO AN ARRAY 
+    #### TO ADD LIST AS COLUMN USING DF.INSERT(DF.COLUMNS.GET_LOC("COLUMN_NAME"),"INSERTED_COLUMN_NAME",LIST) TO MAIN_DF
+    ## artist_popularities = [] 
+    # [artist_popularities.append(requests.get("https://api.spotify.com/v1/artists/{artist_id}?",headers=headers).json()["popularity"]) for popularity in pd
+    ###### YOU ALREADY WROTE GET_ARTIST_POPULARTIES()
+    
+    # list1 = []
+    # list1.append(requests.get("https://api.spotify.com/v1/artists/0UVthdD1eqqsoNLX9ek4Xb?",headers=headers).json()["popularity"])
     
 
-    df_main = df_tracks.merge(df_audio_features,on="track_id").set_index("order")
+    # ====== RECOMMENDATION SECTION ======
+    
+
     return render_template('index.html', dataframe=df_main.to_html())
 
 
-######## NEXT STEP IS TO ACCESS THE PLAYLIST'S TRACK IDS AND ARTIST IDS SO THAT I CAN ITERATIVELY FEED THEM TO THE RECOMMENDATION 
+######## NEXT STEP IS TO ACCESS THE PLAYLIST'S TRACK IDS, ARTIST IDS, AND AUDIO FEATURES SO THAT I CAN ITERATIVELY FEED THEM TO THE RECOMMENDATION 
 ######## ENGINE SO THAT IT WILL SPIT OUT RECOMMENDATIONS BASED ON THAT
