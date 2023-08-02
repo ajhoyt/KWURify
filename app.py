@@ -206,6 +206,9 @@ def generate_setlist():
     
     #### FIGURE OUT HOW TO ACCESS EACH ARTIST ID USING EXPLODE TO GET ADD EACH ARTIST POPULARITY TO AN ARRAY 
     #### TO ADD LIST AS COLUMN USING DF.INSERT(DF.COLUMNS.GET_LOC("COLUMN_NAME"),"INSERTED_COLUMN_NAME",LIST) TO MAIN_DF
+    #### THIS DATAFRAME IS ONLY THE UNPOPULAR SONGS FROM THE GIVEN PLAYLIST. NEW PLAYLIST SHOULD BE INSPIRED BY THE ENTIRE PLAYLIST, NOT JUST THE UNPOPULAR SONGS
+    ####
+
     ## artist_popularities = [] 
     # [artist_popularities.append(requests.get("https://api.spotify.com/v1/artists/{artist_id}?",headers=headers).json()["popularity"]) for popularity in pd
     ###### YOU ALREADY WROTE GET_ARTIST_POPULARTIES()
