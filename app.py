@@ -7,6 +7,57 @@ from urllib.parse import quote
 import time
 import base64
 
+class Playlist:
+    def __init__(self, playlist_data):
+        self.data = playlist_data
+        
+    def get_song_ids(self):
+        return [track["track"]["id"] for track in self.data["items"]]
+    
+    def get_artist_ids(self):
+        artist_ids = set()
+        for track in self.data["items"]:
+            for artist in track["track"]["artists"]:
+                artist_ids.add(artist["id"])
+        return list(artist_ids)
+    
+    def get_artist_popularities(self,artist_ids):
+        token_info = session["TOKEN_INFO"]
+        headers = {
+        'Authorization': 'Bearer {token}'.format(token=token_info['access_token'])
+        }
+        ids_str = ','.join(artist_ids)
+
+        iteration = 0
+        artist_popularities = []
+
+        while True:
+            ids_str = ','.join(artist_ids[(iteration*50):(50+(iteration*50))])
+            response = requests.get(f'https://api.spotify.com/v1/artists/?ids={ids_str}&limit=50&offset={iteration*50}',headers = headers)
+            
+            response_json = response.json()
+            artists = response_json['artists']
+
+            for artist in artists:
+                popularity = artist["popularity"]
+                artist_popularities.append(popularity)
+            if(len(artists)<50):
+                break
+            iteration+=1
+
+        return artist_popularities
+    
+    def get_song_popularities(self):
+        track_popularities = []
+        for track in self.data["items"]:
+            track_popularities.append(track["track"]["popularity"])  
+        return track_popularities
+
+
+    
+    
+
+
 load_dotenv()
 app = Flask(__name__)
 
@@ -28,6 +79,7 @@ app.config["SESSION_COOKIE_NAME"] = "My KWUR Cookies"
 TOKEN_INFO = "token_info"
 CURRENT_USER_INFO = "current_user_info"
 CURR_USER_PLAYLISTS = 'curr_user_playlists'
+
 
 @app.route("/")
 def login():
@@ -94,8 +146,39 @@ def choose_playlist():
             break
     session['CURR_USER_PLAYLISTS'] = curr_user_playlists
     session['TOKEN_INFO'] = token_info
-    
+
     return render_template("choose_playlist.html", playlists=curr_user_playlists.keys())
+
+def get_playlist():
+    
+    token_info = session['TOKEN_INFO']
+    headers = {
+    'Authorization': 'Bearer {token}'.format(token=token_info['access_token'])
+    }
+    curr_user_playlists = session.get("CURR_USER_PLAYLISTS")
+    
+    SELECTED_PLAYLIST = request.form.get("playlist")
+    SELECTED_PLAYLIST_ID = curr_user_playlists[SELECTED_PLAYLIST]
+    fields = 'next,items(track(artists(id,href),popularity,id,href))'
+    playlist = {'items':[]}
+    url = f'https://api.spotify.com/v1/playlists/{SELECTED_PLAYLIST_ID}/tracks?fields={fields}&limit=50'
+    json_number = 1
+    response_content_number = 1
+
+    while url:
+        response = requests.get(url, headers=headers)
+        response_json = response.json()
+        playlist_items = response_json["items"]
+        for item in playlist_items:
+            playlist["items"].append(item)
+
+        print(f'response content number {response_content_number} \n{response.content} \n\n json number {json_number}:\n{response_json}\n\n')   
+        json_number+=1
+        response_content_number+=1
+
+        url = response_json["next"]  # Fetch the next page URL from the response
+        
+    return Playlist(playlist)
 
 def get_token():
     token_info = session.get("TOKEN_INFO",None)
@@ -149,69 +232,70 @@ def get_recommendations(df: pd.DataFrame):
 
 @app.route("/generate_setlist", methods = ["POST","GET"])
 def generate_setlist():
-    
-    # ====== RETRIEVE PLAYLIST SECTION ======
-
-    token_info = session['TOKEN_INFO']
+    token_info = session["TOKEN_INFO"]
     headers = {
     'Authorization': 'Bearer {token}'.format(token=token_info['access_token'])
     }
-    curr_user_playlists = session.get("CURR_USER_PLAYLISTS")
-    
-    SELECTED_PLAYLIST = request.form.get("playlist")
-    SELECTED_PLAYLIST_ID = curr_user_playlists[SELECTED_PLAYLIST]
-    response = requests.get(f'https://api.spotify.com/v1/playlists/{SELECTED_PLAYLIST_ID}',headers = headers)
-    playlist_json = response.json()
-    playlist = playlist_json["tracks"]["items"]
+    # # ====== RETRIEVE PLAYLIST SECTION ======
+
+    playlist = get_playlist()
+    playlist_data = playlist.data
+    artist_ids = playlist.get_artist_ids()
+    song_ids = playlist.get_song_ids()
+    artist_pops = playlist.get_artist_popularities(artist_ids)
+    song_popularities = playlist.get_song_popularities()
+
 
     # ====== FILTER OUT POPULAR SONGS SECTION ======
 
-    valid_artist_ids = []
-    valid_track_ids = []
-    for track in playlist:
+    # valid_artist_ids = []
+    # valid_track_ids = []
+    # for track in playlist:
         
-        curr_track = track["track"] 
-        curr_track_popularity = curr_track["popularity"]
-        curr_track_too_popular = curr_track_popularity > 50
-        if curr_track_too_popular:
-            continue
-        else:
-            curr_track_artists = curr_track['artists']
-            curr_artists_ids = [curr_artist['id'] for curr_artist in curr_track_artists]
-            curr_artists_popularities = get_artists_popularities(curr_artists_ids)
-            curr_artists_too_popular = any(curr_artist_popularity>50 for curr_artist_popularity in curr_artists_popularities )
+    #     curr_track = track["track"] 
+    #     curr_track_popularity = curr_track["popularity"]
+    #     curr_track_too_popular = curr_track_popularity > 50
+    #     if curr_track_too_popular:
+    #         continue
+    #     else:
+    #         curr_track_artists = curr_track['artists']
+    #         curr_artists_ids = [curr_artist['id'] for curr_artist in curr_track_artists]
+    #         curr_artists_popularities = get_artists_popularities(curr_artists_ids)
+    #         curr_artists_too_popular = any(curr_artist_popularity>50 for curr_artist_popularity in curr_artists_popularities )
                 
-            if curr_artists_too_popular:
-                continue
+    #         if curr_artists_too_popular:
+    #             continue
         
-        curr_track_id = curr_track['id']
-        valid_track_ids.append(curr_track_id)
+    #     curr_track_id = curr_track['id']
+    #     valid_track_ids.append(curr_track_id)
     
+
+
     # ====== CREATE VALID SONG TABLE SECTION ======
 
-    valid_playlist = [track["track"] for track in playlist if track['track']['id'] in valid_track_ids]
+    # valid_playlist = [track["track"] for track in playlist if track['track']['id'] in valid_track_ids]
 
-    df_tracks = pd.json_normalize(valid_playlist,record_prefix = 'artist_',record_path = 'artists',meta_prefix = 'track_',meta = ['name','id','popularity'])
-    df_tracks["order"] = (df_tracks['track_name'] != df_tracks['track_name'].shift()).cumsum()
-    df_tracks = df_tracks.set_index("track_name")
-    df_tracks = df_tracks.groupby(by=['track_name','track_id','order','track_popularity']).agg({"artist_name": lambda x: list(x),"artist_id":lambda x:list(x)}).rename({"artist_name":"artists_names"},axis=1).reset_index()
-    df_tracks = df_tracks.sort_values("order",ascending=True)
+    # df_tracks = pd.json_normalize(valid_playlist,record_prefix = 'artist_',record_path = 'artists',meta_prefix = 'track_',meta = ['name','id','popularity'])
+    # df_tracks["order"] = (df_tracks['track_name'] != df_tracks['track_name'].shift()).cumsum()
+    # df_tracks = df_tracks.set_index("track_name")
+    # df_tracks = df_tracks.groupby(by=['track_name','track_id','order','track_popularity']).agg({"artist_name": lambda x: list(x),"artist_id":lambda x:list(x)}).rename({"artist_name":"artists_names"},axis=1).reset_index()
+    # df_tracks = df_tracks.sort_values("order",ascending=True)
 
-    valid_track_ids_str = ','.join(valid_track_ids)
-    audio_features_response = requests.get(f'https://api.spotify.com/v1/audio-features?ids={valid_track_ids_str}',headers=headers) 
-    audio_features_response_json = audio_features_response.json()
-    df_audio_features = pd.DataFrame(data = audio_features_response_json["audio_features"]).drop(columns=["track_href", "type", "uri"]).add_prefix("track_")
-    df_main = df_tracks.merge(df_audio_features,on="track_id").set_index("order")
+    # valid_track_ids_str = ','.join(valid_track_ids)
+    # audio_features_response = requests.get(f'https://api.spotify.com/v1/audio-features?ids={valid_track_ids_str}',headers=headers) 
+    # audio_features_response_json = audio_features_response.json()
+    # df_audio_features = pd.DataFrame(data = audio_features_response_json["audio_features"]).drop(columns=["track_href", "type", "uri"]).add_prefix("track_")
+    # df_main = df_tracks.merge(df_audio_features,on="track_id").set_index("order")
     
     
-    #### FIGURE OUT HOW TO ACCESS EACH ARTIST ID USING EXPLODE TO GET ADD EACH ARTIST POPULARITY TO AN ARRAY 
-    #### TO ADD LIST AS COLUMN USING DF.INSERT(DF.COLUMNS.GET_LOC("COLUMN_NAME"),"INSERTED_COLUMN_NAME",LIST) TO MAIN_DF
-    #### THIS DATAFRAME IS ONLY THE UNPOPULAR SONGS FROM THE GIVEN PLAYLIST. NEW PLAYLIST SHOULD BE INSPIRED BY THE ENTIRE PLAYLIST, NOT JUST THE UNPOPULAR SONGS
-    ####
+    ### FIGURE OUT HOW TO ACCESS EACH ARTIST ID USING EXPLODE TO GET ADD EACH ARTIST POPULARITY TO AN ARRAY 
+    ### TO ADD LIST AS COLUMN USING DF.INSERT(DF.COLUMNS.GET_LOC("COLUMN_NAME"),"INSERTED_COLUMN_NAME",LIST) TO MAIN_DF
+    ### THIS DATAFRAME IS ONLY THE UNPOPULAR SONGS FROM THE GIVEN PLAYLIST. NEW PLAYLIST SHOULD BE INSPIRED BY THE ENTIRE PLAYLIST, NOT JUST THE UNPOPULAR SONGS
+    ###
 
-    ## artist_popularities = [] 
+    # artist_popularities = [] 
     # [artist_popularities.append(requests.get("https://api.spotify.com/v1/artists/{artist_id}?",headers=headers).json()["popularity"]) for popularity in pd
-    ###### YOU ALREADY WROTE GET_ARTIST_POPULARTIES()
+    ##### YOU ALREADY WROTE GET_ARTIST_POPULARTIES()
     
     # list1 = []
     # list1.append(requests.get("https://api.spotify.com/v1/artists/0UVthdD1eqqsoNLX9ek4Xb?",headers=headers).json()["popularity"])
@@ -220,7 +304,8 @@ def generate_setlist():
     # ====== RECOMMENDATION SECTION ======
     
 
-    return render_template('index.html', dataframe=df_main.to_html())
+    return song_popularities
+#render_template('index.html', dataframe=df_main.to_html())
 
 
 ######## NEXT STEP IS TO ACCESS THE PLAYLIST'S TRACK IDS, ARTIST IDS, AND AUDIO FEATURES SO THAT I CAN ITERATIVELY FEED THEM TO THE RECOMMENDATION 
