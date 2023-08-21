@@ -257,37 +257,19 @@ def create_playlist(df_recs: pd.DataFrame):
     new_playlist = response.json()
     uris = df_recs["recommendation_uris"].tolist()
     playlist_iframes = []
-    if len(uris)>100:
-        # Spotify's API allows adding a maximum of 100 tracks per request
-        batch_size = 100
-        for batch_start in range(0, len(uris), batch_size):
-            batch_end = batch_start + batch_size
-            batch_uris = uris[batch_start:batch_end]    
+    
+    # Spotify's API allows adding a maximum of 100 tracks per request
+    batch_size = 100
+    for batch_start in range(0, len(uris), batch_size):
+        batch_end = batch_start + batch_size
+        batch_uris = uris[batch_start:batch_end]    
 
-            body = f'{{"uris":{json.dumps(batch_uris)}}}'   
-            add_tracks_url = f'https://api.spotify.com/v1/playlists/{new_playlist["id"]}/tracks'
-            add_tracks_response = requests.post(add_tracks_url, data=body, headers=headers)
-            #finished_playlist = add_tracks_response.json()
-
-
-            iframe_src = f"https://open.spotify.com/embed/playlist/{new_playlist['id']}?utm_source=generator"
-            iframe_code = f'<iframe style="border-radius: 12px" src="{iframe_src}" width="50%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>'
-            playlist_iframes.append(iframe_code)
-    else:
-        body = f'{{"uris":{json.dumps(uris)}}}'
+        body = f'{{"uris":{json.dumps(batch_uris)}}}'   
         add_tracks_url = f'https://api.spotify.com/v1/playlists/{new_playlist["id"]}/tracks'
         add_tracks_response = requests.post(add_tracks_url, data=body, headers=headers)
-        #finished_playlist = add_tracks_response.json()
-
-
         iframe_src = f"https://open.spotify.com/embed/playlist/{new_playlist['id']}?utm_source=generator"
         iframe_code = f'<iframe style="border-radius: 12px" src="{iframe_src}" width="50%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>'
         playlist_iframes.append(iframe_code)
-    add_tracks_url = f'https://api.spotify.com/v1/playlists/{new_playlist["id"]}/tracks'
-    add_tracks_response = requests.post(add_tracks_url, data=body, headers=headers)
-
-    #finished_playlist = add_tracks_response.json()
-    print(playlist_iframes)
     return render_template("playlist_embed.html", playlist_iframes=playlist_iframes) #body
 
 
