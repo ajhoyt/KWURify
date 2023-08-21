@@ -2,16 +2,51 @@
 <html>
 <head>
     <title>Generate Setlist</title>
+    <link rel="stylesheet" type="text/css" href="static/css/styles.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Didact+Gothic&display=swap');
+    </style>     
 </head>
 <body>
-    <h1>Select a Playlist:</h1>
+    <h1>Welcome to KWURify!</h1>
+    <h2>
+    use the drop down to 
+    select your playlist,
+     and use the slider to
+    select your popularity max:
+    <h2>
     <form action="{{ url_for('generate_setlist') }}" method="POST">
         <select name="playlist">
             {% for playlist in playlists %}
                 <option value="{{ playlist }}">{{ playlist }}</option>
             {% endfor %}
         </select>
+        <br>
+        <label for="slider">Select the range (1-100):</label>
+        <input type="range" name="range" id="slider" min="1" max="100" value="50">
+        <br>
+        <!-- New input for airtime duration -->
+        <label for="airtime">Airtime Duration (minutes):</label>
+        <input type="number" name="airtime" id="airtime" min="1" max="240" value="60">
+        <br>
+        <p id="sliderValue">Slider Value: 50</p>
         <input type="submit" value="Generate Setlist">
     </form>
+    <script>
+        // Get the slider element
+        var slider = document.getElementById("slider");
+
+        // Get the paragraph element where the slider value will be displayed
+        var sliderValueElement = document.getElementById("sliderValue");
+
+        // Update the paragraph element with the current slider value
+        sliderValueElement.innerHTML = "Slider Value: " + slider.value;
+
+        // Add an event listener to update the value whenever the slider is moved
+        slider.addEventListener("input", function() {
+            sliderValueElement.innerHTML = "Slider Value: " + slider.value;
+        });
+    </script>
+    </script>
 </body>
 </html>

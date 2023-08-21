@@ -1,0 +1,29 @@
+/* styles.css */
+
+body {
+  background-color: rgba(171,202,161,1);
+}
+
+
+h1 {
+  color: black;
+  font-family: 'Didact Gothic', sans-serif;
+  text-align:center;
+}
+
+h2 {
+  color: black;
+  font-family: 'Didact Gothic', sans-serif;
+  text-align:center
+}
+
+/* Custom styles for the slider */
+input[type="range"] {
+  width: 90%; /* Increase the width to 90% of the container */
+  margin: 0 auto; /* Center the slider */
+  /* Remove default track appearance */
+  border: none;
+  /* Adjust the height and center the slider handle */
+  height: 6px;
+  margin-top: -3px;
+}
