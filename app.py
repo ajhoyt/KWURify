@@ -247,8 +247,13 @@ def create_playlist(df_recs: pd.DataFrame):
     USER_ID = session["CURRENT_USER_INFO"]['id']
     url = f'https://api.spotify.com/v1/users/{USER_ID}/playlists'
     SELECTED_PLAYLIST = request.form.get("playlist")
-    data = f'{{"name": "Playlist inspired by: {SELECTED_PLAYLIST} " ,"description": "New playlist description","public": false}}'
-    response = requests.post(url = url, data = data, headers = headers)
+    # data = f'{{"name": "Playlist inspired by: {SELECTED_PLAYLIST} " ,"description": "New playlist description","public": false}}'
+    playlist_data = {
+    "name": f"Playlist inspired by: {SELECTED_PLAYLIST}",
+    "description": "New playlist description",
+    "public": False
+}
+    response = requests.post(url = url, data = json.dumps(playlist_data), headers = headers)
     new_playlist = response.json()
     uris = df_recs["recommendation_uris"].tolist()
     playlist_iframes = []
@@ -278,10 +283,10 @@ def create_playlist(df_recs: pd.DataFrame):
         iframe_src = f"https://open.spotify.com/embed/playlist/{new_playlist['id']}?utm_source=generator"
         iframe_code = f'<iframe style="border-radius: 12px" src="{iframe_src}" width="50%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>'
         playlist_iframes.append(iframe_code)
-    # add_tracks_url = f'https://api.spotify.com/v1/playlists/{new_playlist["id"]}/tracks'
-    # add_tracks_response = requests.post(add_tracks_url, data=body, headers=headers)
+    add_tracks_url = f'https://api.spotify.com/v1/playlists/{new_playlist["id"]}/tracks'
+    add_tracks_response = requests.post(add_tracks_url, data=body, headers=headers)
 
-    # finished_playlist = add_tracks_response.json()
+    #finished_playlist = add_tracks_response.json()
     print(playlist_iframes)
     return render_template("playlist_embed.html", playlist_iframes=playlist_iframes) #body
 
