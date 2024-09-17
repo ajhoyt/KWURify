@@ -484,3 +484,14 @@ def generate_setlist():
 
 ######## NEXT STEP IS TO ACCESS THE PLAYLIST'S TRACK IDS, ARTIST IDS, AND AUDIO FEATURES SO THAT I CAN ITERATIVELY FEED THEM TO THE RECOMMENDATION
 ######## ENGINE SO THAT IT WILL SPIT OUT RECOMMENDATIONS BASED ON THAT
+
+
+from flask import Flask
+
+def create_app():
+    app = Flask(__name__)
+
+    from .routes import main
+    app.register_blueprint(main)
+
+    return app
